@@ -163,3 +163,29 @@ fn duplicate_configured_signer_is_rejected() {
     let key = SigningKey::from_bytes(&[1; 32]);
     register_account(&env, &[key.clone(), key], 1);
 }
+
+#[test]
+fn too_many_signatures_is_rejected() {
+    let env = Env::default();
+    let keys = signing_keys();
+    // Configure a 2-of-3 account
+    let account = register_account(&env, &keys[..2], 2);
+    let payload = BytesN::from_array(&env, &[7; 32]);
+    // Submit all 3 keys' signatures even though only 2 are configured signers
+    let signatures = signatures_for(&env, &keys, &payload.to_array());
+
+    assert_eq!(
+        check_auth(&env, &account, &payload, signatures),
+        Err(Ok(Error::TooManySigners))
+    );
+}
+
+#[test]
+fn keep_alive_callable_by_anyone() {
+    let env = Env::default();
+    let keys = signing_keys();
+    let account = register_account(&env, &keys, 2);
+    let client = MultisigAccountClient::new(&env, &account);
+    // keep_alive is permissionless — should not panic
+    client.keep_alive();
+}

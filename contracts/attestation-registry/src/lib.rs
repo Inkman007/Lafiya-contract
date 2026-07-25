@@ -213,16 +213,6 @@ impl AttestationRegistry {
             .unwrap_or(false)
     }
 
-    /// Query the current admin address.
-    pub fn get_admin(env: Env) -> Result<Address, Error> {
-        Self::admin(&env)
-    }
-
-    /// Query the configured `attester-registry` contract address.
-    pub fn get_attester_registry(env: Env) -> Result<Address, Error> {
-        Self::attester_registry(&env)
-    }
-
     /// Record that `attester` verified the record hashing to `record_hash`.
     /// Requires `attester`'s authorization and that `attester` is
     /// currently allowlisted in the configured `attester-registry`.
@@ -400,6 +390,18 @@ impl AttestationRegistry {
             .instance()
             .get(&DataKey::AttesterRegistry)
             .ok_or(Error::NotInitialized)
+    }
+
+    fn require_not_paused(env: &Env) -> Result<(), Error> {
+        let paused: bool = env
+            .storage()
+            .instance()
+            .get(&DataKey::Paused)
+            .unwrap_or(false);
+        if paused {
+            return Err(Error::ContractPaused);
+        }
+        Ok(())
     }
 }
 
