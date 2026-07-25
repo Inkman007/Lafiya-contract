@@ -12,6 +12,7 @@ use soroban_sdk::{
 enum DataKey {
     Threshold,
     Signer(BytesN<32>),
+    SignerCount,
 }
 
 #[contracttype]
@@ -31,6 +32,7 @@ pub enum Error {
     BadSignatureOrder = 4,
     UnknownSigner = 5,
     NotInitialized = 6,
+    TooManySigners = 7,
 }
 
 #[contract]
@@ -54,6 +56,9 @@ impl MultisigAccount {
         env.storage()
             .instance()
             .set(&DataKey::Threshold, &threshold);
+        env.storage()
+            .instance()
+            .set(&DataKey::SignerCount, &signers.len());
     }
 }
 
@@ -76,6 +81,16 @@ impl CustomAccountInterface for MultisigAccount {
 
         if signatures.len() < threshold {
             return Err(Error::NotEnoughSigners);
+        }
+
+        let signer_count: u32 = env
+            .storage()
+            .instance()
+            .get(&DataKey::SignerCount)
+            .ok_or(Error::NotInitialized)?;
+
+        if signatures.len() > signer_count {
+            return Err(Error::TooManySigners);
         }
 
         for index in 0..signatures.len() {
