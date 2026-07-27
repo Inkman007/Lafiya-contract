@@ -126,11 +126,32 @@ impl AttestationRegistry {
     /// Set the admin and the `attester-registry` contract this registry
     /// consults for allowlist checks. Can only be called once; the caller
     /// must authorize as the given `admin`.
+    ///
+    /// ## Best-effort interface check
+    ///
+    /// This function performs a lightweight sanity check against
+    /// `attester_registry`: it calls `is_attester` with a throwaway address
+    /// and confirms the call does not trap. This confirms the address
+    /// implements the expected interface — it does **not** prove the address
+    /// is the canonical, trusted `attester-registry` deployment. A malicious
+    /// contract that happens to expose `is_attester` would pass this check.
     pub fn initialize(env: Env, admin: Address, attester_registry: Address) -> Result<(), Error> {
         if env.storage().instance().has(&DataKey::Admin) {
             return Err(Error::AlreadyInitialized);
         }
         admin.require_auth();
+
+        // Best-effort sanity check: verify attester_registry implements
+        // the is_attester interface by calling it with a throwaway address.
+        let registry = AttesterRegistryClient::new(&env, &attester_registry);
+        // Use the current contract's own address as the throwaway — it's a
+        // valid Address but won't be an allowlisted attester, so a real
+        // attester-registry will return `false` (not trap).
+        let throwaway = env.current_contract_address();
+        if registry.try_is_attester(&throwaway).is_err() {
+            return Err(Error::InvalidRegistryWiring);
+        }
+
         env.storage().instance().set(&DataKey::Admin, &admin);
         env.storage()
             .instance()
