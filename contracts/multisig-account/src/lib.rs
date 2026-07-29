@@ -35,6 +35,12 @@ pub enum Error {
     TooManySigners = 7,
 }
 
+/// Instance storage TTL policy:
+/// - Threshold: 30 days (17280 * 30 = 518400 ledgers)
+/// - Extend to: 90 days (17280 * 90 = 1555200 ledgers)
+const INSTANCE_BUMP_AMOUNT: u32 = 1_555_200;
+const INSTANCE_LIFETIME_THRESHOLD: u32 = 518_400;
+
 #[contract]
 pub struct MultisigAccount;
 
@@ -116,6 +122,10 @@ impl CustomAccountInterface for MultisigAccount {
                 &signature.signature,
             );
         }
+
+        env.storage()
+            .instance()
+            .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
 
         Ok(())
     }
