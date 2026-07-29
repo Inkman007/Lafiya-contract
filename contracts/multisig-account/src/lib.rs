@@ -12,6 +12,7 @@ use soroban_sdk::{
 enum DataKey {
     Threshold,
     Signer(BytesN<32>),
+    SignerCount,
 }
 
 #[contracttype]
@@ -31,7 +32,14 @@ pub enum Error {
     BadSignatureOrder = 4,
     UnknownSigner = 5,
     NotInitialized = 6,
+    TooManySigners = 7,
 }
+
+/// Instance storage TTL policy:
+/// - Threshold: 30 days (17280 * 30 = 518400 ledgers)
+/// - Extend to: 90 days (17280 * 90 = 1555200 ledgers)
+const INSTANCE_BUMP_AMOUNT: u32 = 1_555_200;
+const INSTANCE_LIFETIME_THRESHOLD: u32 = 518_400;
 
 #[contract]
 pub struct MultisigAccount;
@@ -54,6 +62,9 @@ impl MultisigAccount {
         env.storage()
             .instance()
             .set(&DataKey::Threshold, &threshold);
+        env.storage()
+            .instance()
+            .set(&DataKey::SignerCount, &signers.len());
     }
 }
 
@@ -76,6 +87,16 @@ impl CustomAccountInterface for MultisigAccount {
 
         if signatures.len() < threshold {
             return Err(Error::NotEnoughSigners);
+        }
+
+        let signer_count: u32 = env
+            .storage()
+            .instance()
+            .get(&DataKey::SignerCount)
+            .ok_or(Error::NotInitialized)?;
+
+        if signatures.len() > signer_count {
+            return Err(Error::TooManySigners);
         }
 
         for index in 0..signatures.len() {
@@ -101,6 +122,10 @@ impl CustomAccountInterface for MultisigAccount {
                 &signature.signature,
             );
         }
+
+        env.storage()
+            .instance()
+            .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
 
         Ok(())
     }

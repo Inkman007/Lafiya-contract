@@ -1,5 +1,6 @@
 #![no_std]
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![warn(missing_docs)]
 
 use soroban_sdk::{
     contract, contracterror, contractevent, contractimpl, contracttype, Address, BytesN, Env,
@@ -31,6 +32,10 @@ enum DataKey {
     SchemaVersion,
     /// Whether state-changing operations are currently paused.
     Paused,
+    /// Soft cap on the number of allowlisted attesters.
+    MaxAttesters,
+    /// Current count of allowlisted attesters.
+    AttesterCount,
 }
 
 /// Metadata associated with an allowlisted attester.
@@ -62,6 +67,8 @@ pub enum Error {
     AlreadyInitialized = 2,
     NoPendingTransfer = 3,
     ContractPaused = 4,
+    AllowlistFull = 5,
+    MigrationNotRequired = 6,
 }
 
 #[contractevent]
@@ -113,6 +120,20 @@ pub struct AttesterReinstated {
 pub struct Upgraded {
     #[topic]
     pub new_wasm_hash: BytesN<32>,
+}
+
+#[contractevent]
+#[derive(Clone, Debug)]
+pub struct Paused {
+    #[topic]
+    pub by: Address,
+}
+
+#[contractevent]
+#[derive(Clone, Debug)]
+pub struct Unpaused {
+    #[topic]
+    pub by: Address,
 }
 
 #[contract]
@@ -208,6 +229,20 @@ impl AttesterRegistry {
     pub fn add_attester(env: Env, attester: Address) -> Result<(), Error> {
         Self::admin(&env)?.require_auth();
         Self::require_not_paused(&env)?;
+        let already_present = env
+            .storage()
+            .persistent()
+            .has(&DataKey::Attester(attester.clone()));
+        if !already_present {
+            let count = Self::attester_count(&env);
+            let max = Self::max_attesters(&env);
+            if count >= max {
+                return Err(Error::AllowlistFull);
+            }
+            env.storage()
+                .instance()
+                .set(&DataKey::AttesterCount, &(count + 1));
+        }
         let info = AttesterInfo {
             license_hash: None,
             region: None,
@@ -233,6 +268,20 @@ impl AttesterRegistry {
     ) -> Result<(), Error> {
         Self::admin(&env)?.require_auth();
         Self::require_not_paused(&env)?;
+        let already_present = env
+            .storage()
+            .persistent()
+            .has(&DataKey::Attester(attester.clone()));
+        if !already_present {
+            let count = Self::attester_count(&env);
+            let max = Self::max_attesters(&env);
+            if count >= max {
+                return Err(Error::AllowlistFull);
+            }
+            env.storage()
+                .instance()
+                .set(&DataKey::AttesterCount, &(count + 1));
+        }
         let info = AttesterInfo {
             license_hash,
             region,
@@ -252,12 +301,24 @@ impl AttesterRegistry {
     pub fn remove_attester(env: Env, attester: Address) -> Result<(), Error> {
         Self::admin(&env)?.require_auth();
         Self::require_not_paused(&env)?;
+        let was_present = env
+            .storage()
+            .persistent()
+            .has(&DataKey::Attester(attester.clone()));
         env.storage()
             .persistent()
             .remove(&DataKey::Attester(attester.clone()));
         env.storage()
             .persistent()
             .remove(&DataKey::Suspended(attester.clone()));
+        if was_present {
+            let count = Self::attester_count(&env);
+            if count > 0 {
+                env.storage()
+                    .instance()
+                    .set(&DataKey::AttesterCount, &(count - 1));
+            }
+        }
         AttesterRemoved { attester }.publish(&env);
         Ok(())
     }
@@ -351,32 +412,6 @@ impl AttesterRegistry {
         Ok(())
     }
 
-    /// The storage schema version recorded for this instance. `0` means no
-    /// version has been recorded: the instance was deployed before schema
-    /// versioning landed (legacy) or was never initialized.
-    pub fn get_schema_version(env: Env) -> u32 {
-        env.storage()
-            .instance()
-            .get(&DataKey::SchemaVersion)
-            .unwrap_or(0)
-    }
-
-    /// Replace this contract's code with the wasm blob identified by
-    /// `new_wasm_hash`. The blob must already have been uploaded to the
-    /// ledger (e.g. `stellar contract upload`); otherwise the ledger rejects
-    /// the update. Requires the admin's authorization. Instance and
-    /// persistent storage are untouched — the new code starts exactly where
-    /// the old code left off. The swap itself takes effect once this
-    /// invocation finishes successfully. See
-    /// `docs/runbooks/contract-upgrade.md` for the full production
-    /// procedure, including how reviewers verify `new_wasm_hash` against
-    /// the audited source before this call is signed.
-    pub fn upgrade(env: Env, new_wasm_hash: BytesN<32>) -> Result<(), Error> {
-        Self::admin(&env)?.require_auth();
-        env.deployer().update_current_contract_wasm(new_wasm_hash);
-        Ok(())
-    }
-
     /// Run any pending storage migration, then record the new schema
     /// version. Requires the admin's authorization.
     ///
@@ -427,9 +462,24 @@ impl AttesterRegistry {
         }
         Ok(())
     }
+
+    fn max_attesters(env: &Env) -> u32 {
+        env.storage()
+            .instance()
+            .get(&DataKey::MaxAttesters)
+            .unwrap_or(DEFAULT_MAX_ATTESTERS)
+    }
+
+    fn attester_count(env: &Env) -> u32 {
+        env.storage()
+            .instance()
+            .get(&DataKey::AttesterCount)
+            .unwrap_or(0)
+    }
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod large_test;
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]

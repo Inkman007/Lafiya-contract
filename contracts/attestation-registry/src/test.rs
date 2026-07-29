@@ -748,3 +748,74 @@ fn test_attest_auth_matrix() {
         }
     }
 }
+
+#[test]
+fn set_attester_registry_by_admin_succeeds() {
+    let (env, client, attester_registry, admin) = setup();
+
+    let new_registry = Address::generate(&env);
+    assert_eq!(client.get_attester_registry(), attester_registry.address);
+
+    client.set_attester_registry(&new_registry);
+
+    // Check event was emitted before any other call clears it
+    let expected_event = AttesterRegistryRepointed {
+        previous: attester_registry.address.clone(),
+        new: new_registry.clone(),
+    };
+    assert_eq!(
+        env.events().all(),
+        std::vec![expected_event.to_xdr(&env, &client.address)],
+    );
+
+    assert_eq!(
+        env.auths(),
+        std::vec![(
+            admin.clone(),
+            soroban_sdk::testutils::AuthorizedInvocation {
+                function: soroban_sdk::testutils::AuthorizedFunction::Contract((
+                    client.address.clone(),
+                    soroban_sdk::Symbol::new(&env, "set_attester_registry"),
+                    (new_registry.clone(),).into_val(&env),
+                )),
+                sub_invocations: std::vec![],
+            },
+        )]
+    );
+
+    assert_eq!(client.get_attester_registry(), new_registry);
+}
+
+#[test]
+fn set_attester_registry_by_non_admin_fails() {
+    let (env, client, attester_registry, _admin) = setup();
+    let malicious = Address::generate(&env);
+    let new_registry = Address::generate(&env);
+
+    env.mock_auths(&[soroban_sdk::testutils::MockAuth {
+        address: &malicious,
+        invoke: &soroban_sdk::testutils::MockAuthInvoke {
+            contract: &client.address,
+            fn_name: "set_attester_registry",
+            args: (new_registry.clone(),).into_val(&env),
+            sub_invokes: &[],
+        },
+    }]);
+
+    let result = client.try_set_attester_registry(&new_registry);
+    assert!(result.is_err());
+    // Registry should be unchanged
+    assert_eq!(client.get_attester_registry(), attester_registry.address);
+}
+
+#[test]
+fn set_attester_registry_before_initialize_fails() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(AttestationRegistry, ());
+    let client = AttestationRegistryClient::new(&env, &contract_id);
+    let new_registry = Address::generate(&env);
+
+    let result = client.try_set_attester_registry(&new_registry);
+    assert_eq!(result, Err(Ok(Error::NotInitialized)));
+}

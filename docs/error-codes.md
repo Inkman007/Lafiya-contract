@@ -13,6 +13,8 @@ This document enumerates the error codes defined in the Lafiya Soroban smart con
 | `2` | `AlreadyInitialized` | The contract is already initialized; double-initialization is rejected. |
 | `3` | `NoPendingTransfer` | No admin transfer is pending. |
 | `4` | `ContractPaused` | The contract is paused; state-changing calls are rejected until an admin calls `unpause`. |
+| `5` | `AllowlistFull` | The allowlist has reached its configured soft cap (`set_max_attesters`). |
+| `6` | `MigrationNotRequired` | No pending storage migration; `SchemaVersion` is already current. |
 
 ## `attestation-registry`
 
@@ -22,7 +24,9 @@ This document enumerates the error codes defined in the Lafiya Soroban smart con
 | `2` | `AlreadyInitialized` | The contract is already initialized; double-initialization is rejected. |
 | `3` | `AttesterNotAllowlisted` | The attester address is not allowlisted in the configured `attester-registry` contract. |
 | `4` | `NoPendingTransfer` | No admin transfer is pending. |
-| `5` | `InvalidRegistryWiring` | The address passed as `attester_registry` does not implement the expected `is_attester` interface (best-effort check — see `initialize` doc comment). |
+| `5` | `InvalidRegistryWiring` | The configured attester-registry address is invalid or unreachable. |
+| `6` | `AttestationNotFound` | No attestation exists for the given record hash. |
+| `7` | `ContractPaused` | The contract is paused; state-changing calls are rejected until an admin calls `unpause`. |
 
 ## `multisig-account`
 
@@ -34,3 +38,4 @@ This document enumerates the error codes defined in the Lafiya Soroban smart con
 | `4` | `BadSignatureOrder` | Signatures are duplicated or are not strictly ordered by public key. |
 | `5` | `UnknownSigner` | A signature belongs to a public key that is not a configured signer. |
 | `6` | `NotInitialized` | The account's signer threshold is unavailable. |
+| `7` | `TooManySigners` | The supplied signature count exceeds the configured signer count. |
