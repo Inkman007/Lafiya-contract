@@ -1,4 +1,9 @@
 repos:
+-   repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+    -   id: check-yaml
+        name: check YAML syntax (workflows, configs)
 -   repo: local
     hooks:
     -   id: cargo-fmt

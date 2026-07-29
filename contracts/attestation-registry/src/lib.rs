@@ -1,5 +1,6 @@
 #![no_std]
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![warn(missing_docs)]
 
 use soroban_sdk::{
     contract, contractclient, contracterror, contractevent, contractimpl, contracttype, Address,
@@ -105,6 +106,15 @@ pub struct Unpaused {
     pub by: Address,
 }
 
+#[contractevent]
+#[derive(Clone, Debug)]
+pub struct AttesterRegistryRepointed {
+    #[topic]
+    pub previous: Address,
+    #[topic]
+    pub new: Address,
+}
+
 #[contracterror]
 #[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
 #[repr(u32)]
@@ -180,6 +190,28 @@ impl AttestationRegistry {
         AdminTransferred {
             previous_admin,
             new_admin: pending_admin,
+        }
+        .publish(&env);
+
+        Ok(())
+    }
+
+    /// Change the attester-registry contract this registry consults for
+    /// allowlist checks. Requires the admin's authorization. Emits
+    /// `AttesterRegistryRepointed` for indexer/audit visibility.
+    pub fn set_attester_registry(env: Env, new_registry: Address) -> Result<(), Error> {
+        let admin = Self::admin(&env)?;
+        admin.require_auth();
+
+        let previous = Self::attester_registry(&env)?;
+
+        env.storage()
+            .instance()
+            .set(&DataKey::AttesterRegistry, &new_registry);
+
+        AttesterRegistryRepointed {
+            previous,
+            new: new_registry,
         }
         .publish(&env);
 

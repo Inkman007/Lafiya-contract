@@ -65,18 +65,6 @@ impl MultisigAccount {
         env.storage()
             .instance()
             .set(&DataKey::SignerCount, &signers.len());
-
-        env.storage()
-            .instance()
-            .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
-    }
-
-    /// Permissionless TTL extension. Callable by anyone to prevent the
-    /// account's instance storage from being archived due to inactivity.
-    pub fn keep_alive(env: Env) {
-        env.storage()
-            .instance()
-            .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
     }
 }
 

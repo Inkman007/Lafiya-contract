@@ -179,13 +179,3 @@ fn too_many_signatures_is_rejected() {
         Err(Ok(Error::TooManySigners))
     );
 }
-
-#[test]
-fn keep_alive_callable_by_anyone() {
-    let env = Env::default();
-    let keys = signing_keys();
-    let account = register_account(&env, &keys, 2);
-    let client = MultisigAccountClient::new(&env, &account);
-    // keep_alive is permissionless — should not panic
-    client.keep_alive();
-}
