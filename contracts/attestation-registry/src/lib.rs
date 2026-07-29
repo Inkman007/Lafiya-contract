@@ -106,6 +106,15 @@ pub struct Unpaused {
     pub by: Address,
 }
 
+#[contractevent]
+#[derive(Clone, Debug)]
+pub struct AttesterRegistryRepointed {
+    #[topic]
+    pub previous: Address,
+    #[topic]
+    pub new: Address,
+}
+
 #[contracterror]
 #[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
 #[repr(u32)]
@@ -187,6 +196,28 @@ impl AttestationRegistry {
         Ok(())
     }
 
+    /// Change the attester-registry contract this registry consults for
+    /// allowlist checks. Requires the admin's authorization. Emits
+    /// `AttesterRegistryRepointed` for indexer/audit visibility.
+    pub fn set_attester_registry(env: Env, new_registry: Address) -> Result<(), Error> {
+        let admin = Self::admin(&env)?;
+        admin.require_auth();
+
+        let previous = Self::attester_registry(&env)?;
+
+        env.storage()
+            .instance()
+            .set(&DataKey::AttesterRegistry, &new_registry);
+
+        AttesterRegistryRepointed {
+            previous,
+            new: new_registry,
+        }
+        .publish(&env);
+
+        Ok(())
+    }
+
     /// Pause the contract, blocking `attest` until `unpause` is called.
     /// Requires the admin's authorization.
     pub fn pause(env: Env) -> Result<(), Error> {
@@ -212,16 +243,6 @@ impl AttestationRegistry {
             .instance()
             .get(&DataKey::Paused)
             .unwrap_or(false)
-    }
-
-    /// Query the current admin address.
-    pub fn get_admin(env: Env) -> Result<Address, Error> {
-        Self::admin(&env)
-    }
-
-    /// Query the configured `attester-registry` contract address.
-    pub fn get_attester_registry(env: Env) -> Result<Address, Error> {
-        Self::attester_registry(&env)
     }
 
     /// Record that `attester` verified the record hashing to `record_hash`.
@@ -401,6 +422,18 @@ impl AttestationRegistry {
             .instance()
             .get(&DataKey::AttesterRegistry)
             .ok_or(Error::NotInitialized)
+    }
+
+    fn require_not_paused(env: &Env) -> Result<(), Error> {
+        let paused: bool = env
+            .storage()
+            .instance()
+            .get(&DataKey::Paused)
+            .unwrap_or(false);
+        if paused {
+            return Err(Error::ContractPaused);
+        }
+        Ok(())
     }
 }
 
