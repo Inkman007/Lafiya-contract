@@ -333,6 +333,53 @@ fn successful_admin_transfer_flow() {
     assert!(result.is_err());
 }
 
+#[test]
+fn initialize_rejects_non_contract_address() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(AttestationRegistry, ());
+    let client = AttestationRegistryClient::new(&env, &contract_id);
+    let admin = Address::generate(&env);
+    // A non-contract address (just a generated address, never deployed)
+    let non_contract = Address::generate(&env);
+
+    let result = client.try_initialize(&admin, &non_contract);
+    assert_eq!(result, Err(Ok(Error::InvalidRegistryWiring)));
+}
+
+#[test]
+fn initialize_rejects_unrelated_contract_without_is_attester() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(AttestationRegistry, ());
+    let client = AttestationRegistryClient::new(&env, &contract_id);
+    let admin = Address::generate(&env);
+
+    // Use the attestation-registry contract itself as the "attester registry"
+    // address — it's a valid deployed contract but does NOT implement
+    // the is_attester interface, so the sanity check should reject it.
+    let result = client.try_initialize(&admin, &contract_id);
+    assert_eq!(result, Err(Ok(Error::InvalidRegistryWiring)));
+}
+
+#[test]
+fn initialize_accepts_real_attester_registry() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(AttestationRegistry, ());
+    let client = AttestationRegistryClient::new(&env, &contract_id);
+    let admin = Address::generate(&env);
+
+    let attester_registry_id = env.register(attester_registry::AttesterRegistry, ());
+    let attester_registry_client =
+        attester_registry::AttesterRegistryClient::new(&env, &attester_registry_id);
+    attester_registry_client.initialize(&admin);
+
+    let result = client.try_initialize(&admin, &attester_registry_id);
+    assert_eq!(result, Ok(Ok(())));
+    assert_eq!(client.get_attester_registry(), attester_registry_id);
+}
+
 fn parse_error_variants(content: &str) -> std::vec::Vec<std::string::String> {
     let mut variants = std::vec::Vec::new();
     if let Some(start_idx) = content.find("pub enum Error") {
