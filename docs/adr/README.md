@@ -34,3 +34,4 @@ administrative trust models generally do.
 | [ADR-0003](0003-single-admin-initial-model.md) | Use a single admin address for the pre-alpha contracts | Accepted |
 | [ADR-0007](0007-unscoped-multisig-authorization.md) | Keep multisig authorization unscoped during pre-alpha | Proposed |
 | [ADR-0008](0008-record-commitment-canonicalization.md) | Record commitment canonicalization and domain separation (LRC-1) | Proposed |
+| [ADR-0009](0009-rpc-provider-failover-and-transaction-recovery.md) | Client-side RPC provider failover with poll-before-retry transaction recovery | Proposed |
