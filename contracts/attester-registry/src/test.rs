@@ -374,6 +374,15 @@ fn update_attester_info_updates_metadata_and_emits_distinct_event() {
     let initial_region = Symbol::new(&env, "west");
     client.add_attester_with_info(&attester, &Some(initial_hash), &Some(initial_region));
 
+    // Check event was emitted before any other call clears it.
+    let expected_added_event = AttesterAdded {
+        attester: attester.clone(),
+    };
+    assert_eq!(
+        env.events().all(),
+        std::vec![expected_added_event.to_xdr(&env, &client.address)],
+    );
+
     let updated_hash = BytesN::from_array(&env, &[2u8; 32]);
     let updated_region = Symbol::new(&env, "east");
     client.update_attester_info(
@@ -382,18 +391,12 @@ fn update_attester_info_updates_metadata_and_emits_distinct_event() {
         &Some(updated_region.clone()),
     );
 
-    let expected_added_event = AttesterAdded {
-        attester: attester.clone(),
-    };
     let expected_updated_event = AttesterInfoUpdated {
         attester: attester.clone(),
     };
     assert_eq!(
         env.events().all(),
-        std::vec![
-            expected_added_event.to_xdr(&env, &client.address),
-            expected_updated_event.to_xdr(&env, &client.address),
-        ],
+        std::vec![expected_updated_event.to_xdr(&env, &client.address)],
     );
 
     assert_eq!(
@@ -473,7 +476,11 @@ fn get_attester_status_reports_metadata_and_suspension_consistently() {
     let attester = Address::generate(&env);
     let license_hash = BytesN::from_array(&env, &[3u8; 32]);
     let region = Symbol::new(&env, "north");
-    client.add_attester_with_info(&attester, &Some(license_hash.clone()), &Some(region.clone()));
+    client.add_attester_with_info(
+        &attester,
+        &Some(license_hash.clone()),
+        &Some(region.clone()),
+    );
 
     assert_eq!(
         client.get_attester_status(&attester),
