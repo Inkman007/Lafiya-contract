@@ -279,7 +279,10 @@ Not yet deployed to testnet — deployment scripts and instructions land with th
 
 - **M0 — Public card (testnet).** One patient can create a profile and expose a working read-only emergency page via QR. *(`lafiya-web`)*
 - **M1 — Attestation.** Soroban registry lets an allowlisted attester verify a record; the card shows a verified indicator. **← this repo** — contracts implemented and unit-tested; testnet deployment and `lafiya-web` integration still open.
-- **M2 — Incentives.** USDC-on-Stellar payout to a CHW per verified registration.
+- **M2 — Incentives.** USDC-on-Stellar payout to a CHW per verified registration. Target
+  custody architecture (separate treasury from registry admin, bounded payout contract)
+  specified in [ADR-0009](docs/adr/0009-treasury-asset-custody-model.md); no payment
+  contract implemented yet.
 - **M3 — Pilot.** Small supervised field pilot; measure verified cards created and scan events.
 - **M4 — Mainnet + funding.** Launch on mainnet; open transparent funding pool.
 
