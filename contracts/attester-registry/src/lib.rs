@@ -49,6 +49,17 @@ pub struct AttesterInfo {
     pub region: Option<Symbol>,
 }
 
+/// An allowlisted attester's metadata together with its current suspension
+/// state, as returned by `get_attester_status`.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AttesterStatus {
+    /// The attester's stored metadata.
+    pub info: AttesterInfo,
+    /// Whether the attester is currently suspended.
+    pub suspended: bool,
+}
+
 /// Instance storage TTL policy:
 /// - Threshold: 30 days (17280 * 30 = 518400 ledgers)
 /// - Extend to: 90 days (17280 * 90 = 1555200 ledgers)
@@ -79,6 +90,9 @@ pub enum Error {
     AllowlistFull = 5,
     /// A storage migration was invoked but the contract is already current.
     MigrationNotRequired = 6,
+    /// The referenced attester is not currently allowlisted (never added,
+    /// or since removed).
+    AttesterNotFound = 7,
 }
 
 /// Emitted when admin ownership finishes transferring to a new address.
@@ -103,6 +117,16 @@ pub struct Initialized {
 #[contractevent]
 #[derive(Clone, Debug)]
 pub struct AttesterAdded {
+    #[topic]
+    pub attester: Address,
+}
+
+/// Emitted when an already-allowlisted attester's metadata is updated via
+/// `update_attester_info`. Distinguishable from `AttesterAdded`, which is
+/// only emitted on initial enrollment.
+#[contractevent]
+#[derive(Clone, Debug)]
+pub struct AttesterInfoUpdated {
     #[topic]
     pub attester: Address,
 }
@@ -216,8 +240,9 @@ impl AttesterRegistry {
     }
 
     /// Pause the contract, blocking `add_attester`, `add_attester_with_info`,
-    /// `remove_attester`, `suspend_attester`, and `reinstate_attester` until
-    /// `unpause` is called. Requires the admin's authorization.
+    /// `update_attester_info`, `remove_attester`, `suspend_attester`, and
+    /// `reinstate_attester` until `unpause` is called. Requires the admin's
+    /// authorization.
     pub fn pause(env: Env) -> Result<(), Error> {
         let admin = Self::admin(&env)?;
         admin.require_auth();
@@ -316,6 +341,42 @@ impl AttesterRegistry {
         Ok(())
     }
 
+    /// Update the metadata of an already-allowlisted `attester`. Requires
+    /// the admin's authorization. Unlike `add_attester_with_info`, this
+    /// never enrolls a new attester: it fails with `Error::AttesterNotFound`
+    /// if `attester` is not currently allowlisted (never added, or since
+    /// removed), and always emits `AttesterInfoUpdated` rather than
+    /// `AttesterAdded`, so profile changes are distinguishable from
+    /// enrollment.
+    pub fn update_attester_info(
+        env: Env,
+        attester: Address,
+        license_hash: Option<BytesN<32>>,
+        region: Option<Symbol>,
+    ) -> Result<(), Error> {
+        Self::admin(&env)?.require_auth();
+        Self::require_not_paused(&env)?;
+        if !env
+            .storage()
+            .persistent()
+            .has(&DataKey::Attester(attester.clone()))
+        {
+            return Err(Error::AttesterNotFound);
+        }
+        let info = AttesterInfo {
+            license_hash,
+            region,
+        };
+        env.storage()
+            .persistent()
+            .set(&DataKey::Attester(attester.clone()), &info);
+        env.storage()
+            .instance()
+            .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
+        AttesterInfoUpdated { attester }.publish(&env);
+        Ok(())
+    }
+
     /// Remove `attester` from the allowlist. Requires the admin's
     /// authorization. A no-op if the attester was never allowlisted.
     pub fn remove_attester(env: Env, attester: Address) -> Result<(), Error> {
@@ -404,6 +465,21 @@ impl AttesterRegistry {
     /// Get the optional metadata associated with `attester` if they are allowlisted.
     pub fn get_attester_info(env: Env, attester: Address) -> Option<AttesterInfo> {
         env.storage().persistent().get(&DataKey::Attester(attester))
+    }
+
+    /// Get `attester`'s metadata together with its current suspension state
+    /// in a single call. Returns `None` if `attester` is not currently
+    /// allowlisted (never added, or since removed).
+    pub fn get_attester_status(env: Env, attester: Address) -> Option<AttesterStatus> {
+        let info: AttesterInfo = env
+            .storage()
+            .persistent()
+            .get(&DataKey::Attester(attester.clone()))?;
+        let suspended = env
+            .storage()
+            .persistent()
+            .has(&DataKey::Suspended(attester));
+        Some(AttesterStatus { info, suspended })
     }
 
     /// Query the current storage schema version of the contract.
