@@ -9,6 +9,20 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  shell-lint:
+    name: Shell lint (smoke-test.sh)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Syntax check (bash -n)
+        run: |
+          bash -n scripts/smoke-test.sh
+          bash -n scripts/smoke-test.test.sh
+      - name: ShellCheck
+        run: shellcheck scripts/smoke-test.sh scripts/smoke-test.test.sh
+      - name: Run smoke-test.sh regression test
+        run: bash scripts/smoke-test.test.sh
+
   fmt:
     name: Format
     runs-on: ubuntu-latest

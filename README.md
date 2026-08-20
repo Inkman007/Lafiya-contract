@@ -102,9 +102,11 @@ Three Soroban contracts, each in its own crate under `contracts/`.
 | `accept_admin()` | Finalizes the admin transfer. Requires proposed/pending admin auth. Emits `AdminTransferred`. |
 | `add_attester(attester: Address)` | Allowlists `attester`. Requires admin auth. Blocked while paused (`Error::ContractPaused`). Emits `AttesterAdded`. |
 | `add_attester_with_info(attester: Address, license_hash: Option<BytesN<32>>, region: Option<Symbol>)` | Allowlists `attester` with optional metadata. Requires admin auth. Blocked while paused (`Error::ContractPaused`). Emits `AttesterAdded`. |
+| `update_attester_info(attester: Address, license_hash: Option<BytesN<32>>, region: Option<Symbol>)` | Updates metadata for an already-allowlisted `attester`. Requires admin auth. Blocked while paused (`Error::ContractPaused`). Fails with `Error::AttesterNotFound` if `attester` isn't currently allowlisted. Emits `AttesterInfoUpdated`, distinguishable from enrollment's `AttesterAdded`. |
 | `remove_attester(attester: Address)` | Removes `attester` from the allowlist. Requires admin auth. Blocked while paused (`Error::ContractPaused`). Emits `AttesterRemoved`. |
 | `is_attester(attester: Address) -> bool` | Whether `attester` is currently allowlisted (and not suspended). Open to any caller, including other contracts. Callable while paused. |
 | `get_attester_info(attester: Address) -> Option<AttesterInfo>` | Returns stored metadata for an allowlisted attester. Callable while paused. |
+| `get_attester_status(attester: Address) -> Option<AttesterStatus>` | Returns `attester`'s metadata together with its current suspension state in one call. `None` if `attester` isn't currently allowlisted (never added, or since removed). Callable while paused. |
 | `suspend_attester(attester: Address)` | Suspends an allowlisted attester without removing it. Requires admin auth. Blocked while paused (`Error::ContractPaused`). Emits `AttesterSuspended`. |
 | `reinstate_attester(attester: Address)` | Reinstates a suspended attester. Requires admin auth. Blocked while paused (`Error::ContractPaused`). Emits `AttesterReinstated`. |
 | `set_max_attesters(max_attesters: u32)` | Sets the soft cap on the number of allowlisted attesters. Requires admin auth. Does not evict existing attesters if lowered below the current count. |
@@ -279,7 +281,10 @@ Not yet deployed to testnet — deployment scripts and instructions land with th
 
 - **M0 — Public card (testnet).** One patient can create a profile and expose a working read-only emergency page via QR. *(`lafiya-web`)*
 - **M1 — Attestation.** Soroban registry lets an allowlisted attester verify a record; the card shows a verified indicator. **← this repo** — contracts implemented and unit-tested; testnet deployment and `lafiya-web` integration still open.
-- **M2 — Incentives.** USDC-on-Stellar payout to a CHW per verified registration.
+- **M2 — Incentives.** USDC-on-Stellar payout to a CHW per verified registration. Target
+  custody architecture (separate treasury from registry admin, bounded payout contract)
+  specified in [ADR-0009](docs/adr/0009-treasury-asset-custody-model.md); no payment
+  contract implemented yet.
 - **M3 — Pilot.** Small supervised field pilot; measure verified cards created and scan events.
 - **M4 — Mainnet + funding.** Launch on mainnet; open transparent funding pool.
 
