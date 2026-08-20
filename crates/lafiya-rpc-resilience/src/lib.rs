@@ -266,7 +266,9 @@ impl FailoverClient {
             match outcome {
                 SubmitOutcome::Ack(TxState::Accepted { ledger }) => {
                     let provider = self.providers[idx].name().to_string();
-                    log.record(format!("{provider} accepted immediately at ledger {ledger}"));
+                    log.record(format!(
+                        "{provider} accepted immediately at ledger {ledger}"
+                    ));
                     return RecoveryResult::Accepted {
                         ledger,
                         provider,
@@ -274,11 +276,15 @@ impl FailoverClient {
                     };
                 }
                 SubmitOutcome::Ack(TxState::Rejected { reason }) => {
-                    log.record(format!("rejected on submit ({reason}); do not retry this transaction"));
+                    log.record(format!(
+                        "rejected on submit ({reason}); do not retry this transaction"
+                    ));
                     return RecoveryResult::RejectedOnChain { reason };
                 }
                 SubmitOutcome::Ack(_queued) => {
-                    log.record("provider queued the transaction; polling for a final verdict".to_string());
+                    log.record(
+                        "provider queued the transaction; polling for a final verdict".to_string(),
+                    );
                     return self.poll_until_resolved(tx_hash, submit_round, log);
                 }
                 SubmitOutcome::Ambiguous(err) => {
@@ -288,7 +294,11 @@ impl FailoverClient {
                     return self.poll_until_resolved(tx_hash, submit_round, log);
                 }
                 SubmitOutcome::Definite(err) => {
-                    let backoff = backoff_schedule(submit_round, self.policy.base_backoff, self.policy.max_backoff);
+                    let backoff = backoff_schedule(
+                        submit_round,
+                        self.policy.base_backoff,
+                        self.policy.max_backoff,
+                    );
                     log.record(format!(
                         "definite failure ({err}) -- nothing recorded, safe to retry after {backoff:?}"
                     ));
@@ -303,7 +313,12 @@ impl FailoverClient {
         }
     }
 
-    fn poll_until_resolved(&mut self, tx_hash: &str, mut attempts: u32, log: &mut RecoveryLog) -> RecoveryResult {
+    fn poll_until_resolved(
+        &mut self,
+        tx_hash: &str,
+        mut attempts: u32,
+        log: &mut RecoveryLog,
+    ) -> RecoveryResult {
         let provider_count = self.providers.len();
 
         for poll_round in 1..=self.policy.max_poll_rounds {
@@ -314,7 +329,9 @@ impl FailoverClient {
                 match provider.get_transaction(tx_hash) {
                     Ok(TxState::Accepted { ledger }) => {
                         let name = provider.name().to_string();
-                        log.record(format!("poll {poll_round} via {name}: accepted at ledger {ledger}"));
+                        log.record(format!(
+                            "poll {poll_round} via {name}: accepted at ledger {ledger}"
+                        ));
                         return RecoveryResult::Accepted {
                             ledger,
                             provider: name,
@@ -329,7 +346,10 @@ impl FailoverClient {
                         return RecoveryResult::RejectedOnChain { reason };
                     }
                     Ok(TxState::Pending) | Ok(TxState::Submitted) => {
-                        log.record(format!("poll {poll_round} via {}: still pending", provider.name()));
+                        log.record(format!(
+                            "poll {poll_round} via {}: still pending",
+                            provider.name()
+                        ));
                     }
                     Ok(TxState::Unknown) | Ok(TxState::NotSubmitted) => {
                         log.record(format!(
@@ -338,16 +358,25 @@ impl FailoverClient {
                         ));
                     }
                     Err(err) => {
-                        log.record(format!("poll {poll_round} via {}: error ({err})", provider.name()));
+                        log.record(format!(
+                            "poll {poll_round} via {}: error ({err})",
+                            provider.name()
+                        ));
                     }
                 }
             }
 
-            let backoff = backoff_schedule(poll_round, self.policy.base_backoff, self.policy.max_backoff);
+            let backoff = backoff_schedule(
+                poll_round,
+                self.policy.base_backoff,
+                self.policy.max_backoff,
+            );
             log.record(format!("backing off {backoff:?} before next poll round"));
         }
 
-        log.record("poll rounds exhausted without a final verdict -- escalate to operator".to_string());
+        log.record(
+            "poll rounds exhausted without a final verdict -- escalate to operator".to_string(),
+        );
         RecoveryResult::ExhaustedNeedsOperator {
             last_known: TxState::Unknown,
         }
@@ -366,8 +395,16 @@ mod tests {
         assert_eq!(backoff_schedule(2, base, max), Duration::from_millis(200));
         assert_eq!(backoff_schedule(3, base, max), Duration::from_millis(400));
         assert_eq!(backoff_schedule(6, base, max), Duration::from_millis(3200));
-        assert_eq!(backoff_schedule(7, base, max), max, "must cap instead of overflowing");
-        assert_eq!(backoff_schedule(20, base, max), max, "large attempts must still cap, not overflow");
+        assert_eq!(
+            backoff_schedule(7, base, max),
+            max,
+            "must cap instead of overflowing"
+        );
+        assert_eq!(
+            backoff_schedule(20, base, max),
+            max,
+            "large attempts must still cap, not overflow"
+        );
     }
 
     #[test]

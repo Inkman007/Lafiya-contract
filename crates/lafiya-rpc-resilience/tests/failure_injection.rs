@@ -8,7 +8,10 @@
 //! outcome was still ambiguous.
 
 use lafiya_rpc_resilience::mock::{ScriptedProvider, Shared};
-use lafiya_rpc_resilience::{FailoverClient, RecoveryLog, RecoveryResult, RetryPolicy, RpcError, RpcProvider, SubmitOutcome, TxState};
+use lafiya_rpc_resilience::{
+    FailoverClient, RecoveryLog, RecoveryResult, RetryPolicy, RpcError, RpcProvider, SubmitOutcome,
+    TxState,
+};
 
 fn policy() -> RetryPolicy {
     RetryPolicy {
@@ -41,8 +44,16 @@ fn timeout_before_send_is_safe_to_retry_and_succeeds() {
             submit_attempts: 2,
         }
     );
-    assert_eq!(handle.borrow().submit_calls, 2, "a definite pre-send failure must be retried");
-    assert_eq!(handle.borrow().poll_calls, 0, "no ambiguity here, so no polling was needed");
+    assert_eq!(
+        handle.borrow().submit_calls,
+        2,
+        "a definite pre-send failure must be retried"
+    );
+    assert_eq!(
+        handle.borrow().poll_calls,
+        0,
+        "no ambiguity here, so no polling was needed"
+    );
 }
 
 #[test]
@@ -97,7 +108,11 @@ fn ambiguous_timeout_after_send_polls_and_finds_rejection() {
             reason: "trustline missing".to_string(),
         }
     );
-    assert_eq!(handle.borrow().submit_calls, 1, "still no blind resubmission");
+    assert_eq!(
+        handle.borrow().submit_calls,
+        1,
+        "still no blind resubmission"
+    );
 }
 
 #[test]
@@ -133,8 +148,14 @@ fn rate_limit_backs_off_then_succeeds_on_the_same_provider() {
 
 #[test]
 fn primary_provider_down_fails_over_to_secondary_without_duplicate_submission() {
-    let primary = Shared::new(ScriptedProvider::new("primary").then_submit(SubmitOutcome::Definite(RpcError::ProviderUnavailable)));
-    let secondary = Shared::new(ScriptedProvider::new("secondary").then_submit(SubmitOutcome::Ack(TxState::Accepted { ledger: 9000 })));
+    let primary = Shared::new(
+        ScriptedProvider::new("primary")
+            .then_submit(SubmitOutcome::Definite(RpcError::ProviderUnavailable)),
+    );
+    let secondary = Shared::new(
+        ScriptedProvider::new("secondary")
+            .then_submit(SubmitOutcome::Ack(TxState::Accepted { ledger: 9000 })),
+    );
     let primary_handle = primary.handle();
     let secondary_handle = secondary.handle();
     let providers: Vec<Box<dyn RpcProvider>> = vec![Box::new(primary), Box::new(secondary)];
@@ -151,7 +172,11 @@ fn primary_provider_down_fails_over_to_secondary_without_duplicate_submission() 
             submit_attempts: 2,
         }
     );
-    assert_eq!(primary_handle.borrow().submit_calls, 1, "primary is tried exactly once, not looped on");
+    assert_eq!(
+        primary_handle.borrow().submit_calls,
+        1,
+        "primary is tried exactly once, not looped on"
+    );
     assert_eq!(
         secondary_handle.borrow().submit_calls,
         1,
@@ -181,12 +206,18 @@ fn exhausting_submit_rounds_escalates_to_the_operator_as_not_submitted() {
             last_known: TxState::NotSubmitted,
         }
     );
-    assert_eq!(handle.borrow().submit_calls, 3, "must stop at the configured round budget, not loop forever");
+    assert_eq!(
+        handle.borrow().submit_calls,
+        3,
+        "must stop at the configured round budget, not loop forever"
+    );
 }
 
 #[test]
 fn exhausting_poll_rounds_escalates_to_the_operator_as_unknown() {
-    let node = Shared::new(ScriptedProvider::new("solo").then_submit(SubmitOutcome::Ambiguous(RpcError::Timeout)));
+    let node = Shared::new(
+        ScriptedProvider::new("solo").then_submit(SubmitOutcome::Ambiguous(RpcError::Timeout)),
+    );
     // No polls scripted: ScriptedProvider defaults every unscripted poll to Ok(Unknown),
     // modeling a provider whose retention window already dropped the hash.
     let handle = node.handle();
@@ -208,6 +239,10 @@ fn exhausting_poll_rounds_escalates_to_the_operator_as_unknown() {
             last_known: TxState::Unknown,
         }
     );
-    assert_eq!(handle.borrow().submit_calls, 1, "still exactly one submission despite the unresolved poll");
+    assert_eq!(
+        handle.borrow().submit_calls,
+        1,
+        "still exactly one submission despite the unresolved poll"
+    );
     assert_eq!(handle.borrow().poll_calls, 3);
 }

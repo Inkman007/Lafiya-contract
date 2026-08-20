@@ -14,7 +14,9 @@
 //! runbook by hand.
 
 use lafiya_rpc_resilience::mock::ScriptedProvider;
-use lafiya_rpc_resilience::{FailoverClient, RecoveryLog, RetryPolicy, RpcError, RpcProvider, SubmitOutcome, TxState};
+use lafiya_rpc_resilience::{
+    FailoverClient, RecoveryLog, RetryPolicy, RpcError, RpcProvider, SubmitOutcome, TxState,
+};
 use std::time::Duration;
 
 fn policy() -> RetryPolicy {
@@ -63,8 +65,14 @@ fn main() {
         "Scenario 3: primary provider hard down, secondary provider takes over",
         "tx-scenario-3",
         vec![
-            Box::new(ScriptedProvider::new("provider-a").then_submit(SubmitOutcome::Definite(RpcError::ProviderUnavailable))),
-            Box::new(ScriptedProvider::new("provider-b").then_submit(SubmitOutcome::Ack(TxState::Accepted { ledger: 1236 }))),
+            Box::new(
+                ScriptedProvider::new("provider-a")
+                    .then_submit(SubmitOutcome::Definite(RpcError::ProviderUnavailable)),
+            ),
+            Box::new(
+                ScriptedProvider::new("provider-b")
+                    .then_submit(SubmitOutcome::Ack(TxState::Accepted { ledger: 1236 })),
+            ),
         ],
     );
 
